@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Doc Editor (XML and PDF)</title>
+<style>
+:root{
+  --ink:#1c1b22;
+  --paper:#fbfaf7;
+  --panel:#ffffff;
+  --line:#e4e0d8;
+  --convert:#0d9488;
+  --convert-dark:#0a6e64;
+  --unlock:#e8930a;
+  --unlock-dark:#b96f05;
+  --edit:#e0295a;
+  --edit-dark:#b31d45;
+  --mono:'JetBrains Mono','Courier New',monospace;
+  --serif:'Georgia','Iowan Old Style',serif;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  min-height:100vh;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(13,148,136,0.35), transparent 45%),
+    radial-gradient(circle at 85% 15%, rgba(224,41,90,0.28), transparent 45%),
+    radial-gradient(circle at 50% 100%, rgba(232,147,10,0.20), transparent 55%),
+    linear-gradient(160deg, #1a1730 0%, #201c3d 40%, #0f2d3a 100%);
+  background-attachment:fixed;
+  color:var(--ink);
+  font-family:var(--mono);
+  font-size:14px;
+  line-height:1.5;
+}
+.wrap{max-width:1140px;margin:0 auto;padding:36px 20px 80px;}
+header{text-align:center;margin-bottom:30px;}
+header h1{
+  font-family:var(--serif);font-weight:700;font-size:40px;margin:0;
+  letter-spacing:-0.5px;
+  background:linear-gradient(90deg, var(--convert), var(--unlock), var(--edit));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  display:inline-block;
+}
+header .subtag{
+  margin-top:6px;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;
+  color:#e8e6f0;opacity:0.85;
+}
+.privacy-strip{
+  font-size:12px;color:#efeef7;margin-bottom:28px;text-align:center;
+  padding:10px 14px;background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.14);border-radius:8px;
+  max-width:640px;margin-left:auto;margin-right:auto;
+}
+
+.grid{display:grid;grid-template-columns:230px 3px 1fr;gap:24px;align-items:start;}
+@media(max-width:800px){.grid{grid-template-columns:1fr;}.navdivider{display:none;}}
+
+.navdivider{
+  align-self:stretch;min-height:520px;
+  background:linear-gradient(180deg, var(--convert), var(--unlock), var(--edit));
+  border-radius:3px;opacity:0.85;
+}
+
+nav{position:sticky;top:20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:16px;}
+.navgroup{margin-bottom:20px;}
+.navgroup:last-child{margin-bottom:0;}
+.navgroup h3{
+  font-family:var(--serif);font-weight:700;font-size:17px;
+  letter-spacing:0.5px;margin:0 0 10px 2px;
+}
+.navgroup[data-group="convert"] h3{color:var(--convert);}
+.navgroup[data-group="unlock"] h3{color:var(--unlock);}
+.navgroup[data-group="edit"] h3{color:var(--edit);}
+.navbtn{
+  display:block;width:100%;text-align:left;background:none;border:none;
+  font-family:var(--mono);font-size:13px;color:#f1f0f7;
+  padding:8px 10px;cursor:pointer;border-left:3px solid transparent;
+  margin-bottom:2px;border-radius:4px;
+}
+.navbtn:hover{background:rgba(255,255,255,0.08);}
+.navgroup[data-group="convert"] .navbtn.active{border-left-color:var(--convert);background:rgba(13,148,136,0.18);color:#5eead4;font-weight:700;}
+.navgroup[data-group="unlock"] .navbtn.active{border-left-color:var(--unlock);background:rgba(232,147,10,0.18);color:#fbbf24;font-weight:700;}
+.navgroup[data-group="edit"] .navbtn.active{border-left-color:var(--edit);background:rgba(224,41,90,0.18);color:#fb7185;font-weight:700;}
+
+.panel{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:12px;
+  box-shadow:0 10px 30px rgba(10,8,30,0.25);
+  padding:28px;
+  display:none;
+}
+.panel.active{display:block;}
+.panel h2{font-family:var(--serif);font-size:22px;margin:0 0 4px;}
+.panel[data-group="convert"] h2{color:var(--convert-dark);}
+.panel[data-group="unlock"] h2{color:var(--unlock-dark);}
+.panel[data-group="edit"] h2{color:var(--edit-dark);}
+.panel .desc{color:#565a4d;font-size:12.5px;margin-bottom:20px;}
+
+.drop{
+  border:2px dashed var(--line);
+  padding:26px;text-align:center;cursor:pointer;border-radius:8px;
+  transition:border-color .15s, background .15s;
+  margin-bottom:16px;
+}
+.panel[data-group="convert"] .drop.drag{border-color:var(--convert);background:rgba(13,148,136,0.06);}
+.panel[data-group="unlock"] .drop.drag{border-color:var(--unlock);background:rgba(232,147,10,0.06);}
+.panel[data-group="edit"] .drop.drag{border-color:var(--edit);background:rgba(224,41,90,0.06);}
+.drop input{display:none;}
+.drop .filename{font-weight:700;color:var(--ink);word-break:break-all;}
+.drop .hint{font-size:11.5px;color:#8a8778;margin-top:4px;}
+
+.row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;align-items:end;}
+.field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px;}
+.field label{font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:#565a4d;}
+input[type=text],input[type=number],input[type=password],select,textarea{
+  font-family:var(--mono);font-size:13px;
+  border:1px solid var(--line);background:var(--paper);border-radius:6px;
+  padding:8px 10px;color:var(--ink);
+}
+textarea{resize:vertical;min-height:120px;}
+input[type=range]{width:100%;}
+input[type=color]{width:44px;height:34px;border:1px solid var(--line);border-radius:6px;padding:2px;background:var(--paper);}
+
+.checks{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;}
+.checks label{display:flex;align-items:center;gap:6px;font-size:12.5px;}
+
+button.run{
+  border:none;border-radius:8px;
+  font-family:var(--mono);font-weight:700;font-size:13px;
+  padding:11px 22px;cursor:pointer;letter-spacing:0.5px;
+  text-transform:uppercase;color:#fff;
+  box-shadow:0 4px 14px rgba(0,0,0,0.18);
+  transition:transform .1s, box-shadow .1s;
+}
+button.run:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,0.25);}
+button.run:disabled{background:#b8b5a6;cursor:not-allowed;transform:none;box-shadow:none;}
+.panel[data-group="convert"] button.run{background:linear-gradient(135deg,var(--convert),var(--convert-dark));}
+.panel[data-group="unlock"] button.run{background:linear-gradient(135deg,var(--unlock),var(--unlock-dark));}
+.panel[data-group="edit"] button.run{background:linear-gradient(135deg,var(--edit),var(--edit-dark));}
+
+button.ghost{
+  background:none;border:1px solid var(--line);color:var(--ink);border-radius:8px;
+  font-family:var(--mono);font-size:12px;padding:9px 16px;cursor:pointer;
+}
+button.ghost:hover{border-color:var(--ink);}
+
+.status{margin-top:14px;font-size:12.5px;padding:10px 12px;border-left:3px solid var(--line);border-radius:6px;display:none;}
+.status.show{display:block;}
+.status.ok{border-color:#0d9488;background:rgba(13,148,136,0.08);color:#0a6e64;}
+.status.err{border-color:var(--edit);background:rgba(224,41,90,0.06);color:var(--edit-dark);}
+.status.pending{border-color:var(--unlock);background:rgba(232,147,10,0.06);color:var(--unlock-dark);}
+
+.filelist{margin-bottom:14px;}
+.filelist .item{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:6px;margin-bottom:4px;font-size:12.5px;background:var(--paper);}
+.filelist .item button{background:none;border:none;color:var(--edit);cursor:pointer;font-family:var(--mono);}
+
+.note{font-size:11.5px;color:#8a8778;margin-top:10px;line-height:1.5;}
+.pagegrid{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+.pagechip{border:1px solid var(--line);padding:5px 9px;border-radius:6px;font-size:12px;cursor:pointer;user-select:none;background:var(--paper);}
+.pagechip.sel{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Doc Editor (XML and PDF)</h1>
+    <div class="subtag">runs locally · no AI · nothing leaves this server</div>
+  </header>
+  <div class="privacy-strip">
+    Every conversion happens in this process's memory. Files are never written to persistent storage, never sent to a third party, and are discarded the moment the response is sent.
+  </div>
+
+  <div class="grid">
+    <nav>
+      <div class="navgroup" data-group="convert">
+        <h3>Convert</h3>
+        <button class="navbtn active" data-tab="xml2xl">XML → Excel</button>
+        <button class="navbtn" data-tab="pdf2xl">PDF → Excel</button>
+        <button class="navbtn" data-tab="pdf2img">PDF → PNG/JPG</button>
+      </div>
+      <div class="navgroup" data-group="unlock">
+        <h3>Unlock</h3>
+        <button class="navbtn" data-tab="unlock">Unlock PDF</button>
+      </div>
+      <div class="navgroup" data-group="edit">
+        <h3>Edit</h3>
+        <button class="navbtn" data-tab="organize">Merge / Split / Reorder / Delete</button>
+        <button class="navbtn" data-tab="rotate">Rotate</button>
+        <button class="navbtn" data-tab="compress">Compress</button>
+        <button class="navbtn" data-tab="watermark">Add Watermark / Stamp</button>
+        <button class="navbtn" data-tab="dewatermark">Remove Watermark</button>
+      </div>
+    </nav>
+
+    <div class="navdivider"></div>
+
+    <main>
+      <!-- XML TO EXCEL -->
+      <section class="panel active" data-group="convert" id="xml2xl">
+        <h2>XML → Excel</h2>
+        <div class="desc">Flattens repeating XML records into rows. Works with nested elements and attributes.</div>
+        <div class="drop" data-accept=".xml">
+          <input type="file" accept=".xml">
+          <div class="label">Drop an .xml file here, or click to choose</div>
+          <div class="hint">Single file</div>
+        </div>
+        <button class="run" data-endpoint="/api/xml-to-excel" data-filekey="file">Convert to Excel</button>
+        <div class="status"></div>
+      </section>
+
+      <!-- PDF TO EXCEL -->
+      <section class="panel" data-group="convert" id="pdf2xl">
+        <h2>PDF → Excel</h2>
+        <div class="desc">Detects tables on every page (invoices, reports, statements). If no tables are found, falls back to raw text per page.</div>
+        <div class="drop" data-accept=".pdf">
+          <input type="file" accept=".pdf">
+          <div class="label">Drop a .pdf file here, or click to choose</div>
+        </div>
+        <div class="checks">
+          <label><input type="checkbox" id="pdf2xl-combine" checked> Combine tables with matching headers into one sheet (e.g. a multi-page invoice/statement)</label>
+        </div>
+        <button class="run" data-endpoint="/api/pdf-to-excel" data-filekey="file" data-extra="pdf2xl-extra">Extract Tables</button>
+        <div class="status"></div>
+      </section>
+
+      <!-- PDF TO IMAGE -->
+      <section class="panel" data-group="convert" id="pdf2img">
+        <h2>PDF → PNG / JPG</h2>
+        <div class="desc">Renders each page as an image at the DPI you choose.</div>
+        <div class="drop" data-accept=".pdf">
+          <input type="file" accept=".pdf">
+          <div class="label">Drop a .pdf file here, or click to choose</div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Format</label>
+            <select id="img-format"><option value="png">PNG</option><option value="jpg">JPG</option></select>
+          </div>
+          <div class="field">
+            <label>DPI</label>
+            <select id="img-dpi"><option value="96">96 (screen)</option><option value="150" selected>150 (default)</option><option value="300">300 (print)</option></select>
+          </div>
+          <div class="field">
+            <label>Pages (blank = all)</label>
+            <input type="text" id="img-pages" placeholder="e.g. 1-3,5">
+          </div>
+        </div>
+        <button class="run" data-endpoint="/api/pdf-to-image" data-filekey="file" data-extra="img-extra">Convert</button>
+        <div class="status"></div>
+      </section>
+
+      <!-- UNLOCK -->
+      <section class="panel" data-group="unlock" id="unlock">
+        <h2>Unlock PDF</h2>
+        <div class="desc">Removes password protection / editing restrictions. If the file is user-password protected, enter it below; leave blank if it only has owner/permission restrictions.</div>
+        <div class="drop" data-accept=".pdf">
+          <input type="file" accept=".pdf">
+          <div class="label">Drop a .pdf file here, or click to choose</div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Password (if known)</label>
+            <input type="password" id="unlock-password" placeholder="leave blank if unknown">
+          </div>
+        </div>
+        <button class="run" data-endpoint="/api/unlock-pdf" data-filekey="file" data-extra="unlock-extra">Unlock</button>
+        <div class="status"></div>
+      </section>
+
+      <!-- ORGANIZE: merge / split / reorder / delete -->
+      <section class="panel" data-group="edit" id="organize">
+        <h2>Merge · Split · Reorder · Delete</h2>
+        <div class="desc">Pick a mode below. Merge takes multiple files; the others work on one file's pages.</div>
+        <div class="row" style="margin-bottom:18px;">
+          <div class="field">
+            <label>Mode</label>
+            <select id="org-mode">
+              <option value="merge">Merge multiple PDFs into one</option>
+              <option value="split">Split into separate files</option>
+              <option value="organize">Reorder / delete pages</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="org-merge-ui">
+          <div class="drop" data-accept=".pdf" data-multi="1">
+            <input type="file" accept=".pdf" multiple>
+            <div class="label">Drop 2+ PDFs here, or click to choose (order = merge order)</div>
+          </div>
+          <div class="filelist"></div>
+          <div class="row">
+            <div class="field">
+              <label>Output format</label>
+              <select class="fmt-select" id="merge-format" data-dpi="merge-dpi-field">
+                <option value="pdf">PDF</option>
+                <option value="png">PNG (image per page)</option>
+                <option value="jpg">JPG (image per page)</option>
+              </select>
+            </div>
+            <div class="field" id="merge-dpi-field" style="display:none;">
+              <label>Image DPI</label>
+              <select id="merge-dpi"><option value="96">96</option><option value="150" selected>150</option><option value="300">300</option></select>
+            </div>
+          </div>
+          <button class="run" data-endpoint="/api/pdf-merge" data-filekey="files" data-multi="1">Merge</button>
+        </div>
+
+        <div id="org-split-ui" style="display:none;">
+          <div class="drop" data-accept=".pdf">
+            <input type="file" accept=".pdf">
+            <div class="label">Drop a .pdf file here, or click to choose</div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>Split mode</label>
+              <select id="split-mode"><option value="single">One page per file</option><option value="ranges">Custom ranges (each = one file)</option></select>
+            </div>
+            <div class="field" id="split-ranges-field" style="display:none;">
+              <label>Ranges (semicolon-separated groups)</label>
+              <input type="text" id="split-ranges" placeholder="e.g. 1-3;4-5;6">
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>Output format</label>
+              <select class="fmt-select" id="split-format" data-dpi="split-dpi-field">
+                <option value="pdf">PDF (one file per split)</option>
+                <option value="png">PNG (image per page)</option>
+                <option value="jpg">JPG (image per page)</option>
+              </select>
+            </div>
+            <div class="field" id="split-dpi-field" style="display:none;">
+              <label>Image DPI</label>
+              <select id="split-dpi"><option value="96">96</option><option value="150" selected>150</option><option value="300">300</option></select>
+            </div>
+          </div>
+          <button class="run" data-endpoint="/api/pdf-split" data-filekey="file" data-extra="split-extra">Split (downloads a .zip)</button>
+        </div>
+
+        <div id="org-organize-ui" style="display:none;">
+          <div class="drop" data-accept=".pdf">
+            <input type="file" accept=".pdf">
+            <div class="label">Drop a .pdf file here, or click to choose</div>
+          </div>
+          <div class="note">After choosing a file, click pages below in the order you want them to appear. Unclicked pages are deleted. Click "Reset" to select all pages in original order.</div>
+          <div class="pagegrid" id="org-pagegrid"></div>
+          <div class="row">
+            <button class="ghost" id="org-reset-pages" type="button">Reset (all pages, original order)</button>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>Output format</label>
+              <select class="fmt-select" id="org-format" data-dpi="org-dpi-field">
+                <option value="pdf">PDF</option>
+                <option value="png">PNG (image per page)</option>
+                <option value="jpg">JPG (image per page)</option>
+              </select>
+            </div>
+            <div class="field" id="org-dpi-field" style="display:none;">
+              <label>Image DPI</label>
+              <select id="org-dpi"><option value="96">96</option><option value="150" selected>150</option><option value="300">300</option></select>
+            </div>
+          </div>
+          <button class="run" data-endpoint="/api/pdf-organize" data-filekey="file" data-extra="organize-extra">Apply</button>
+        </div>
+        <div class="status"></div>
+      </section>
+
+      <!-- ROTATE -->
+      <section class="panel" data-group="edit" id="rotate">
+        <h2>Rotate Pages</h2>
+        <div class="drop" data-accept=".pdf">
+          <input type="file" accept=".pdf">
+          <div class="label">Drop a .pdf file here, or click to choose</div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Angle</label>
+            <select id="rotate-angle"><option value="90">90° clockwise</option><option value="180">180°</option><option value="270">90° counter-clockwise</option></select>
+          </div>
+          <div class="field">
+            <label>Pages (blank = all)</label>
+            <input type="text" id="rotate-pages" placeholder="e.g. 1,3-5">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Output format</label>
+            <select class="fmt-select" id="rotate-format" data-dpi="rotate-dpi-field">
+              <option value="pdf">PDF</option>
+              <option value="png">PNG (image per page)</option>
+              <option value="jpg">JPG (image per page)</option>
+            </select>
+          </div>
+          <div class="field" id="rotate-dpi-field" style="display:none;">
+            <label>Image DPI</label>
+            <select id="rotate-dpi"><option value="96">96</option><option value="150" selected>150</option><option value="300">300</option></select>
+          </div>
+        </div>
+        <button class="run" data-endpoint="/api/pdf-rotate" data-filekey="file" data-extra="rotate-extra">Rotate</button>
+        <div class="status"></div>
+      </section>
+
+      <!-- COMPRESS -->
+      <section class="panel" data-group="edit" id="compress">
+        <h2>Compress</h2>
+        <div class="desc">Recompresses embedded images to shrink file size. Best on scan-heavy / image-heavy PDFs.</div>
+        <div class="drop" data-accept=".pdf">
+          <input type="file" accept=".pdf">
+          <div class="label">Drop a .pdf file here, or click to choose</div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Quality</label>
+            <select id="compress-quality">
+              <option value="low">Low (smallest file)</option>
+              <option value="medium" selected>Medium (balanced)</option>
+              <option value="high">High (best quality)</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Output format</label>
+            <select class="fmt-select" id="compress-format" data-dpi="compress-dpi-field">
+              <option value="pdf">PDF</option>
+              <option value="png">PNG (image per page)</option>
+              <option value="jpg">JPG (image per page)</option>
+            </select>
+          </div>
+          <div class="field" id="compress-dpi-field" style="display:none;">
+            <label>Image DPI</label>
+            <select id="compress-dpi"><option value="96">96</option><option value="150" selected>150</option><option value="300">300</option></select>
+          </div>
+        </div>
+        <button class="run" data-endpoint="/api/pdf-compress" data-filekey="file" data-extra="compress-extra">Compress</button>
+        <div class="status"></div>
+      </section>
+
+      <!-- WATERMARK ADD -->
+      <section class="panel" data-group="edit" id="watermark">
+        <h2>Add Watermark / Stamp</h2>
+        <div class="drop" data-accept=".pdf">
+          <input type="file" accept=".pdf">
+          <div class="label">Drop a .pdf file here, or click to choose</div>
+        </div>
+        <div class="row">
+          <div class="field" style="flex:2;">
+            <label>Text</label>
+            <input type="text" id="wm-text" placeholder="e.g. CONFIDENTIAL">
+          </div>
+          <div class="field">
+            <label>Position</label>
+            <select id="wm-position"><option value="diagonal">Diagonal</option><option value="center">Horizontal</option></select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Color</label>
+            <input type="color" id="wm-color" value="#808080">
+          </div>
+          <div class="field">
+            <label>Size</label>
+            <input type="number" id="wm-size" value="48" min="8" max="200">
+          </div>
+          <div class="field">
+            <label>Opacity (<span id="wm-opacity-val">0.3</span>)</label>
+            <input type="range" id="wm-opacity" min="0.05" max="1" step="0.05" value="0.3">
+          </div>
+        </div>
+        <button class="run" data-endpoint="/api/pdf-watermark-add" data-filekey="file" data-extra="wm-extra">Add Watermark</button>
+        <div class="status"></div>
+      </section>
+
+      <!-- WATERMARK REMOVE -->
+      <section class="panel" data-group="edit" id="dewatermark">
+        <h2>Remove Watermark</h2>
+        <div class="desc">Best-effort. If you know the exact watermark text, enter it for a precise removal. Otherwise the tool auto-detects text or images that repeat identically across most pages, which is the usual watermark signature. Watermarks baked into a flattened background image can't always be cleanly removed — check the result.</div>
+        <div class="drop" data-accept=".pdf">
+          <input type="file" accept=".pdf">
+          <div class="label">Drop a .pdf file here, or click to choose</div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Watermark text (optional — leave blank to auto-detect)</label>
+            <input type="text" id="dewm-text" placeholder="e.g. DRAFT">
+          </div>
+        </div>
+        <button class="run" data-endpoint="/api/pdf-watermark-remove" data-filekey="file" data-extra="dewm-extra">Remove Watermark</button>
+        <div class="status"></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+// ---------- tab nav ----------
+document.querySelectorAll('.navbtn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.navbtn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ---------- generic dropzone wiring ----------
+// each panel's dropzone stores its File object(s) on the element itself
+document.querySelectorAll('.drop').forEach(drop=>{
+  const input = drop.querySelector('input[type=file]');
+  const isMulti = drop.dataset.multi === '1';
+  drop._files = [];
+
+  function renderLabel(){
+    const labelEl = drop.querySelector('.label');
+    if(drop._files.length === 0){
+      labelEl.textContent = isMulti ? 'Drop files here, or click to choose' : 'Drop a file here, or click to choose';
+      labelEl.className = 'label';
+    } else if(drop._files.length === 1){
+      labelEl.textContent = drop._files[0].name;
+      labelEl.className = 'label filename';
+    } else {
+      labelEl.textContent = drop._files.length + ' files selected';
+      labelEl.className = 'label filename';
+    }
+    const list = drop.parentElement.querySelector('.filelist');
+    if(list){
+      list.innerHTML = '';
+      drop._files.forEach((f,i)=>{
+        const item = document.createElement('div');
+        item.className = 'item';
+        item.innerHTML = '<span>'+(i+1)+'. '+f.name+'</span>';
+        const rm = document.createElement('button');
+        rm.textContent = '✕';
+        rm.onclick = ()=>{ drop._files.splice(i,1); renderLabel(); };
+        item.appendChild(rm);
+        list.appendChild(item);
+      });
+    }
+  }
+
+  drop.addEventListener('click', ()=>input.click());
+  input.addEventListener('change', e=>{
+    const files = Array.from(e.target.files);
+    drop._files = isMulti ? drop._files.concat(files) : files.slice(0,1);
+    renderLabel();
+    drop.dispatchEvent(new CustomEvent('filesready'));
+  });
+  ['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag');}));
+  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag');}));
+  drop.addEventListener('drop', e=>{
+    const files = Array.from(e.dataTransfer.files);
+    drop._files = isMulti ? drop._files.concat(files) : files.slice(0,1);
+    renderLabel();
+    drop.dispatchEvent(new CustomEvent('filesready'));
+  });
+});
+
+function setStatus(panel, kind, msg){
+  const el = panel.querySelector('.status');
+  el.className = 'status show ' + kind;
+  el.textContent = msg;
+}
+
+function filenameFromDisposition(disposition, fallback){
+  if(!disposition) return fallback;
+  const m = /filename="?([^"]+)"?/.exec(disposition);
+  return m ? m[1] : fallback;
+}
+
+async function submitJob(btn){
+  const panel = btn.closest('.panel');
+  const endpoint = btn.dataset.endpoint;
+  const fileKey = btn.dataset.filekey;
+  const isMulti = btn.dataset.multi === '1';
+  const drop = panel.querySelector('.drop:not([style*="display: none"])') || panel.querySelector('.drop');
+  // find the relevant visible dropzone within the active sub-ui
+  let activeDrop = null;
+  panel.querySelectorAll('.drop').forEach(d=>{
+    if(d.offsetParent !== null) activeDrop = d;
+  });
+  if(!activeDrop) activeDrop = drop;
+
+  if(!activeDrop._files || activeDrop._files.length === 0){
+    setStatus(panel, 'err', 'Choose a file first.');
+    return;
+  }
+  if(isMulti && activeDrop._files.length < 2){
+    setStatus(panel, 'err', 'Choose at least two files.');
+    return;
+  }
+
+  const fd = new FormData();
+  if(isMulti){
+    activeDrop._files.forEach(f=>fd.append(fileKey, f));
+  } else {
+    fd.append(fileKey, activeDrop._files[0]);
+  }
+
+  // panel-specific extra fields
+  collectExtraFields(panel.id, fd);
+
+  btn.disabled = true;
+  setStatus(panel, 'pending', 'Processing…');
+
+  try{
+    const res = await fetch(endpoint, {method:'POST', body: fd});
+    if(!res.ok){
+      let msg = 'Something went wrong.';
+      try{ const j = await res.json(); msg = j.error || msg; }catch(e){}
+      setStatus(panel, 'err', msg);
+      btn.disabled = false;
+      return;
+    }
+    const blob = await res.blob();
+    const disposition = res.headers.get('Content-Disposition');
+    const fname = filenameFromDisposition(disposition, 'output');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    setStatus(panel, 'ok', 'Done — downloaded ' + fname);
+  }catch(e){
+    setStatus(panel, 'err', 'Network or server error: ' + e.message);
+  }
+  btn.disabled = false;
+}
+
+function collectExtraFields(panelId, fd){
+  if(panelId === 'pdf2xl'){
+    fd.append('combine', document.getElementById('pdf2xl-combine').checked ? 'true' : 'false');
+  }
+  if(panelId === 'pdf2img'){
+    fd.append('format', document.getElementById('img-format').value);
+    fd.append('dpi', document.getElementById('img-dpi').value);
+    fd.append('pages', document.getElementById('img-pages').value);
+  }
+  if(panelId === 'unlock'){
+    fd.append('password', document.getElementById('unlock-password').value);
+  }
+  if(panelId === 'organize'){
+    const mode = document.getElementById('org-mode').value;
+    if(mode === 'merge'){
+      fd.append('format', document.getElementById('merge-format').value);
+      fd.append('dpi', document.getElementById('merge-dpi').value);
+    }
+    if(mode === 'split'){
+      const sm = document.getElementById('split-mode').value;
+      fd.append('mode', sm);
+      fd.append('ranges', document.getElementById('split-ranges').value);
+      fd.append('format', document.getElementById('split-format').value);
+      fd.append('dpi', document.getElementById('split-dpi').value);
+    }
+    if(mode === 'organize'){
+      const order = Array.from(document.querySelectorAll('#org-pagegrid .pagechip.sel')).map(c=>c.dataset.page).join(',');
+      fd.append('order', order);
+      fd.append('format', document.getElementById('org-format').value);
+      fd.append('dpi', document.getElementById('org-dpi').value);
+    }
+  }
+  if(panelId === 'rotate'){
+    fd.append('angle', document.getElementById('rotate-angle').value);
+    fd.append('pages', document.getElementById('rotate-pages').value);
+    fd.append('format', document.getElementById('rotate-format').value);
+    fd.append('dpi', document.getElementById('rotate-dpi').value);
+  }
+  if(panelId === 'compress'){
+    fd.append('quality', document.getElementById('compress-quality').value);
+    fd.append('format', document.getElementById('compress-format').value);
+    fd.append('dpi', document.getElementById('compress-dpi').value);
+  }
+  if(panelId === 'watermark'){
+    fd.append('text', document.getElementById('wm-text').value);
+    fd.append('position', document.getElementById('wm-position').value);
+    fd.append('color', document.getElementById('wm-color').value);
+    fd.append('size', document.getElementById('wm-size').value);
+    fd.append('opacity', document.getElementById('wm-opacity').value);
+  }
+  if(panelId === 'dewatermark'){
+    fd.append('watermark_text', document.getElementById('dewm-text').value);
+  }
+}
+
+document.querySelectorAll('button.run').forEach(btn=>{
+  btn.addEventListener('click', ()=>submitJob(btn));
+});
+
+// ---------- organize sub-mode switching ----------
+const orgMode = document.getElementById('org-mode');
+orgMode.addEventListener('change', ()=>{
+  document.getElementById('org-merge-ui').style.display = orgMode.value==='merge' ? '' : 'none';
+  document.getElementById('org-split-ui').style.display = orgMode.value==='split' ? '' : 'none';
+  document.getElementById('org-organize-ui').style.display = orgMode.value==='organize' ? '' : 'none';
+});
+document.getElementById('split-mode').addEventListener('change', e=>{
+  document.getElementById('split-ranges-field').style.display = e.target.value==='ranges' ? '' : 'none';
+});
+
+// build page picker when a file is chosen in the organize/reorder sub-ui
+const orgOrganizeDrop = document.querySelector('#org-organize-ui .drop');
+orgOrganizeDrop.addEventListener('filesready', async ()=>{
+  const f = orgOrganizeDrop._files[0];
+  if(!f) return;
+  const fd = new FormData(); fd.append('file', f);
+  const res = await fetch('/api/pdf-info', {method:'POST', body:fd});
+  if(!res.ok) return;
+  const info = await res.json();
+  const grid = document.getElementById('org-pagegrid');
+  grid.innerHTML = '';
+  for(let i=1;i<=info.pages;i++){
+    const chip = document.createElement('div');
+    chip.className = 'pagechip sel';
+    chip.textContent = i;
+    chip.dataset.page = i;
+    chip.dataset.order = i;
+    chip.addEventListener('click', ()=>{
+      chip.classList.toggle('sel');
+    });
+    grid.appendChild(chip);
+  }
+});
+document.getElementById('org-reset-pages').addEventListener('click', ()=>{
+  document.querySelectorAll('#org-pagegrid .pagechip').forEach(c=>c.classList.add('sel'));
+});
+
+// watermark opacity live label
+document.getElementById('wm-opacity').addEventListener('input', e=>{
+  document.getElementById('wm-opacity-val').textContent = e.target.value;
+});
+
+// output-format selects: reveal the DPI field only when an image format is chosen
+document.querySelectorAll('.fmt-select').forEach(sel=>{
+  const dpiField = document.getElementById(sel.dataset.dpi);
+  sel.addEventListener('change', ()=>{
+    dpiField.style.display = sel.value === 'pdf' ? 'none' : '';
+  });
+});
+</script>
+</body>
+</html>
