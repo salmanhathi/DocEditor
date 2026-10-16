@@ -1,6 +1,6 @@
 """
 DocForge — local file toolkit
-XML→Excel, PDF→Excel, Unlock PDF, and a full PDF edit suite.
+XML→Excel, PDF→Excel, image format converter, Unlock PDF, and a full PDF edit suite.
 Everything runs in-process. No file ever leaves this server, no AI calls, no
 external services. Uploads live only in memory / a per-request temp dir and
 are discarded after the response is sent.
@@ -19,6 +19,13 @@ import pikepdf
 import pdfplumber
 import pandas as pd
 import xmltodict
+from PIL import Image, ImageOps, UnidentifiedImageError
+try:  # optional: lets the image converter open iPhone HEIC/HEIF photos
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+    HEIF_OK = True
+except Exception:
+    HEIF_OK = False
 from flask import Flask, request, send_file, jsonify, render_template, after_this_request
 
 app = Flask(__name__)
@@ -747,6 +754,156 @@ def pdf_to_image():
 
 
 # ---------------------------------------------------------------------------
+# Image converter (any image -> JPG / PNG / WEBP / GIF / BMP / TIFF / ICO / PDF)
+# ---------------------------------------------------------------------------
+
+# key -> (Pillow format name, file extension, mimetype)
+IMAGE_FORMATS = {
+    "jpg":  ("JPEG", "jpg",  "image/jpeg"),
+    "png":  ("PNG",  "png",  "image/png"),
+    "webp": ("WEBP", "webp", "image/webp"),
+    "gif":  ("GIF",  "gif",  "image/gif"),
+    "bmp":  ("BMP",  "bmp",  "image/bmp"),
+    "tiff": ("TIFF", "tiff", "image/tiff"),
+    "ico":  ("ICO",  "ico",  "image/x-icon"),
+    "pdf":  ("PDF",  "pdf",  "application/pdf"),
+}
+# formats that cannot store transparency -> flatten onto a background colour
+NO_ALPHA_FORMATS = {"jpg", "bmp", "pdf"}
+
+
+def hex_to_rgb(value, default=(255, 255, 255)):
+    value = (value or "").lstrip("#")
+    try:
+        return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
+    except Exception:
+        return default
+
+
+def prepare_image(img, target, bg_rgb, max_dim):
+    """Normalise a Pillow image so it can be saved as `target`."""
+    img = ImageOps.exif_transpose(img)  # honour phone-camera rotation
+    if max_dim and max(img.size) > max_dim:
+        img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+    if target == "ico" and max(img.size) > 256:
+        img.thumbnail((256, 256), Image.LANCZOS)
+
+    has_alpha = img.mode in ("RGBA", "LA", "PA") or (img.mode == "P" and "transparency" in img.info)
+
+    if target in NO_ALPHA_FORMATS:
+        if has_alpha:
+            rgba = img.convert("RGBA")
+            bg = Image.new("RGB", rgba.size, bg_rgb)
+            bg.paste(rgba, mask=rgba.split()[3])
+            return bg
+        return img.convert("RGB")
+
+    if has_alpha:
+        return img.convert("RGBA")
+    if img.mode == "L" and target in ("png", "tiff", "webp"):
+        return img
+    return img.convert("RGB")
+
+
+def save_image(img, target, quality):
+    fmt_name = IMAGE_FORMATS[target][0]
+    buf = io.BytesIO()
+    kwargs = {}
+    if target == "jpg":
+        kwargs = {"quality": quality, "optimize": True}
+    elif target == "webp":
+        kwargs = {"quality": quality, "method": 4}
+    elif target == "png":
+        kwargs = {"optimize": True}
+    elif target == "tiff":
+        kwargs = {"compression": "tiff_lzw"}
+    elif target == "ico":
+        kwargs = {"sizes": [img.size]}
+    elif target == "pdf":
+        kwargs = {"resolution": 100.0}
+    img.save(buf, format=fmt_name, **kwargs)
+    return buf.getvalue()
+
+
+@app.route("/api/image-convert", methods=["POST"])
+def image_convert():
+    files = [f for f in request.files.getlist("files") if f and f.filename]
+    target = request.form.get("format", "jpg").lower()
+    if target == "jpeg":
+        target = "jpg"
+    if not files:
+        return error("No image uploaded.")
+    if target not in IMAGE_FORMATS:
+        return error("Unsupported output format.")
+    try:
+        quality = max(1, min(100, int(request.form.get("quality", 90))))
+    except ValueError:
+        quality = 90
+    try:
+        max_dim = int(request.form.get("max_dim", "") or 0)
+    except ValueError:
+        max_dim = 0
+    bg_rgb = hex_to_rgb(request.form.get("bg", "#ffffff"))
+    combine_pdf = target == "pdf" and request.form.get("combine", "false").lower() == "true"
+
+    ext = IMAGE_FORMATS[target][1]
+    mime = IMAGE_FORMATS[target][2]
+    converted = []   # (output name, bytes)
+    prepared = []    # used only for combined PDF
+    failures = []
+
+    used_names = set()
+
+    def unique_name(base):
+        name, n = f"{base}.{ext}", 1
+        while name.lower() in used_names:
+            n += 1
+            name = f"{base}_{n}.{ext}"
+        used_names.add(name.lower())
+        return name
+
+    for f in files:
+        original = os.path.basename(f.filename)
+        base = os.path.splitext(original)[0] or "image"
+        try:
+            img = Image.open(io.BytesIO(f.read()))
+            img.load()  # first frame only for animated files
+            img = prepare_image(img, target, bg_rgb, max_dim)
+            if combine_pdf:
+                prepared.append(img)
+            else:
+                converted.append((unique_name(base), save_image(img, target, quality)))
+        except UnidentifiedImageError:
+            hint = ""
+            if original.lower().endswith((".heic", ".heif")) and not HEIF_OK:
+                hint = " (HEIC needs: pip install pillow-heif)"
+            failures.append(f"{original}: not a readable image{hint}")
+        except Exception as e:
+            failures.append(f"{original}: {e}")
+
+    if combine_pdf and prepared:
+        buf = io.BytesIO()
+        prepared[0].save(buf, format="PDF", save_all=True, append_images=prepared[1:], resolution=100.0)
+        converted.append(("images_combined.pdf", buf.getvalue()))
+
+    if not converted:
+        return error("Could not convert: " + "; ".join(failures))
+
+    if len(converted) == 1 and not failures:
+        name, data = converted[0]
+        return send_file(io.BytesIO(data), as_attachment=True, download_name=name, mimetype=mime)
+
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, data in converted:
+            zf.writestr(name, data)
+        if failures:
+            zf.writestr("_errors.txt", "\n".join(failures))
+    zip_buf.seek(0)
+    return send_file(zip_buf, as_attachment=True, download_name=f"converted_{ext}.zip", mimetype="application/zip")
+
+
+# ---------------------------------------------------------------------------
 # PDF info (page count etc, used by the frontend to build page pickers)
 # ---------------------------------------------------------------------------
 
@@ -770,5 +927,5 @@ def index():
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port, debug=False)
