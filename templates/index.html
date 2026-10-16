@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Doc Editor (XML and PDF)</title>
+<title>Doc Editor (XML, PDF and Images)</title>
 <style>
 :root{
   --ink:#1c1b22;
@@ -16,8 +16,12 @@
   --unlock-dark:#b96f05;
   --edit:#e0295a;
   --edit-dark:#b31d45;
-  --mono:'JetBrains Mono','Courier New',monospace;
-  --serif:'Georgia','Iowan Old Style',serif;
+  /* Bold, modern system font stack (no web fonts = nothing leaves this server).
+     To make everything even heavier, raise --fw to 600. */
+  --sans:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  --mono:var(--sans);
+  --serif:var(--sans);
+  --fw:500;
 }
 *{box-sizing:border-box;}
 body{
@@ -31,24 +35,28 @@ body{
   background-attachment:fixed;
   color:var(--ink);
   font-family:var(--mono);
-  font-size:14px;
-  line-height:1.5;
+  font-size:15px;
+  font-weight:var(--fw);
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
 }
+button,input,select,textarea{font-weight:600;}
 .wrap{max-width:1140px;margin:0 auto;padding:36px 20px 80px;}
 header{text-align:center;margin-bottom:30px;}
 header h1{
-  font-family:var(--serif);font-weight:700;font-size:40px;margin:0;
-  letter-spacing:-0.5px;
+  font-family:var(--serif);font-weight:800;font-size:40px;margin:0;
+  letter-spacing:-0.8px;
   background:linear-gradient(90deg, var(--convert), var(--unlock), var(--edit));
   -webkit-background-clip:text;background-clip:text;color:transparent;
   display:inline-block;
 }
 header .subtag{
-  margin-top:6px;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;
-  color:#e8e6f0;opacity:0.85;
+  margin-top:6px;font-size:12.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  color:#f4f3fa;opacity:0.95;
 }
 .privacy-strip{
-  font-size:12px;color:#efeef7;margin-bottom:28px;text-align:center;
+  font-size:13px;font-weight:600;color:#f6f5fb;margin-bottom:28px;text-align:center;
   padding:10px 14px;background:rgba(255,255,255,0.06);
   border:1px solid rgba(255,255,255,0.14);border-radius:8px;
   max-width:640px;margin-left:auto;margin-right:auto;
@@ -67,22 +75,22 @@ nav{position:sticky;top:20px;background:rgba(255,255,255,0.05);border:1px solid 
 .navgroup{margin-bottom:20px;}
 .navgroup:last-child{margin-bottom:0;}
 .navgroup h3{
-  font-family:var(--serif);font-weight:700;font-size:17px;
-  letter-spacing:0.5px;margin:0 0 10px 2px;
+  font-family:var(--serif);font-weight:800;font-size:18px;
+  letter-spacing:0.4px;margin:0 0 10px 2px;
 }
 .navgroup[data-group="convert"] h3{color:var(--convert);}
 .navgroup[data-group="unlock"] h3{color:var(--unlock);}
 .navgroup[data-group="edit"] h3{color:var(--edit);}
 .navbtn{
   display:block;width:100%;text-align:left;background:none;border:none;
-  font-family:var(--mono);font-size:13px;color:#f1f0f7;
-  padding:8px 10px;cursor:pointer;border-left:3px solid transparent;
+  font-family:var(--mono);font-size:14px;font-weight:600;color:#f8f7fc;
+  padding:9px 10px;cursor:pointer;border-left:3px solid transparent;
   margin-bottom:2px;border-radius:4px;
 }
 .navbtn:hover{background:rgba(255,255,255,0.08);}
-.navgroup[data-group="convert"] .navbtn.active{border-left-color:var(--convert);background:rgba(13,148,136,0.18);color:#5eead4;font-weight:700;}
-.navgroup[data-group="unlock"] .navbtn.active{border-left-color:var(--unlock);background:rgba(232,147,10,0.18);color:#fbbf24;font-weight:700;}
-.navgroup[data-group="edit"] .navbtn.active{border-left-color:var(--edit);background:rgba(224,41,90,0.18);color:#fb7185;font-weight:700;}
+.navgroup[data-group="convert"] .navbtn.active{border-left-color:var(--convert);background:rgba(13,148,136,0.18);color:#5eead4;font-weight:800;}
+.navgroup[data-group="unlock"] .navbtn.active{border-left-color:var(--unlock);background:rgba(232,147,10,0.18);color:#fbbf24;font-weight:800;}
+.navgroup[data-group="edit"] .navbtn.active{border-left-color:var(--edit);background:rgba(224,41,90,0.18);color:#fb7185;font-weight:800;}
 
 .panel{
   background:var(--panel);
@@ -93,11 +101,11 @@ nav{position:sticky;top:20px;background:rgba(255,255,255,0.05);border:1px solid 
   display:none;
 }
 .panel.active{display:block;}
-.panel h2{font-family:var(--serif);font-size:22px;margin:0 0 4px;}
+.panel h2{font-family:var(--serif);font-size:24px;font-weight:800;letter-spacing:-0.3px;margin:0 0 4px;}
 .panel[data-group="convert"] h2{color:var(--convert-dark);}
 .panel[data-group="unlock"] h2{color:var(--unlock-dark);}
 .panel[data-group="edit"] h2{color:var(--edit-dark);}
-.panel .desc{color:#565a4d;font-size:12.5px;margin-bottom:20px;}
+.panel .desc{color:#34372d;font-size:13.5px;font-weight:600;margin-bottom:20px;}
 
 .drop{
   border:2px dashed var(--line);
@@ -109,15 +117,16 @@ nav{position:sticky;top:20px;background:rgba(255,255,255,0.05);border:1px solid 
 .panel[data-group="unlock"] .drop.drag{border-color:var(--unlock);background:rgba(232,147,10,0.06);}
 .panel[data-group="edit"] .drop.drag{border-color:var(--edit);background:rgba(224,41,90,0.06);}
 .drop input{display:none;}
-.drop .filename{font-weight:700;color:var(--ink);word-break:break-all;}
-.drop .hint{font-size:11.5px;color:#8a8778;margin-top:4px;}
+.drop .label{font-weight:700;}
+.drop .filename{font-weight:800;color:var(--ink);word-break:break-all;}
+.drop .hint{font-size:12.5px;font-weight:600;color:#5a5749;margin-top:4px;}
 
 .row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;align-items:end;}
 .field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px;}
-.field label{font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:#565a4d;}
+.field label{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#34372d;}
 input[type=text],input[type=number],input[type=password],select,textarea{
-  font-family:var(--mono);font-size:13px;
-  border:1px solid var(--line);background:var(--paper);border-radius:6px;
+  font-family:var(--mono);font-size:14px;font-weight:600;
+  border:1.5px solid var(--line);background:var(--paper);border-radius:6px;
   padding:8px 10px;color:var(--ink);
 }
 textarea{resize:vertical;min-height:120px;}
@@ -125,11 +134,11 @@ input[type=range]{width:100%;}
 input[type=color]{width:44px;height:34px;border:1px solid var(--line);border-radius:6px;padding:2px;background:var(--paper);}
 
 .checks{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;}
-.checks label{display:flex;align-items:center;gap:6px;font-size:12.5px;}
+.checks label{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;}
 
 button.run{
   border:none;border-radius:8px;
-  font-family:var(--mono);font-weight:700;font-size:13px;
+  font-family:var(--mono);font-weight:800;font-size:13.5px;
   padding:11px 22px;cursor:pointer;letter-spacing:0.5px;
   text-transform:uppercase;color:#fff;
   box-shadow:0 4px 14px rgba(0,0,0,0.18);
@@ -143,30 +152,30 @@ button.run:disabled{background:#b8b5a6;cursor:not-allowed;transform:none;box-sha
 
 button.ghost{
   background:none;border:1px solid var(--line);color:var(--ink);border-radius:8px;
-  font-family:var(--mono);font-size:12px;padding:9px 16px;cursor:pointer;
+  font-family:var(--mono);font-size:13px;font-weight:700;padding:9px 16px;cursor:pointer;
 }
 button.ghost:hover{border-color:var(--ink);}
 
-.status{margin-top:14px;font-size:12.5px;padding:10px 12px;border-left:3px solid var(--line);border-radius:6px;display:none;}
+.status{margin-top:14px;font-size:13.5px;font-weight:700;padding:10px 12px;border-left:3px solid var(--line);border-radius:6px;display:none;}
 .status.show{display:block;}
 .status.ok{border-color:#0d9488;background:rgba(13,148,136,0.08);color:#0a6e64;}
 .status.err{border-color:var(--edit);background:rgba(224,41,90,0.06);color:var(--edit-dark);}
 .status.pending{border-color:var(--unlock);background:rgba(232,147,10,0.06);color:var(--unlock-dark);}
 
 .filelist{margin-bottom:14px;}
-.filelist .item{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:6px;margin-bottom:4px;font-size:12.5px;background:var(--paper);}
+.filelist .item{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:6px;margin-bottom:4px;font-size:13.5px;font-weight:600;background:var(--paper);}
 .filelist .item button{background:none;border:none;color:var(--edit);cursor:pointer;font-family:var(--mono);}
 
-.note{font-size:11.5px;color:#8a8778;margin-top:10px;line-height:1.5;}
+.note{font-size:12.5px;font-weight:600;color:#5a5749;margin-top:10px;line-height:1.5;}
 .pagegrid{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
-.pagechip{border:1px solid var(--line);padding:5px 9px;border-radius:6px;font-size:12px;cursor:pointer;user-select:none;background:var(--paper);}
+.pagechip{border:1.5px solid var(--line);padding:5px 10px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;user-select:none;background:var(--paper);}
 .pagechip.sel{background:var(--ink);color:var(--paper);border-color:var(--ink);}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>Doc Editor (XML and PDF)</h1>
+    <h1>Doc Editor (XML, PDF and Images)</h1>
     <div class="subtag">runs locally · no AI · nothing leaves this server</div>
   </header>
   <div class="privacy-strip">
@@ -180,6 +189,7 @@ button.ghost:hover{border-color:var(--ink);}
         <button class="navbtn active" data-tab="xml2xl">XML → Excel</button>
         <button class="navbtn" data-tab="pdf2xl">PDF → Excel</button>
         <button class="navbtn" data-tab="pdf2img">PDF → PNG/JPG</button>
+        <button class="navbtn" data-tab="imgconv">Image Converter</button>
       </div>
       <div class="navgroup" data-group="unlock">
         <h3>Unlock</h3>
@@ -249,6 +259,52 @@ button.ghost:hover{border-color:var(--ink);}
           </div>
         </div>
         <button class="run" data-endpoint="/api/pdf-to-image" data-filekey="file" data-extra="img-extra">Convert</button>
+        <div class="status"></div>
+      </section>
+
+      <!-- IMAGE CONVERTER -->
+      <section class="panel" data-group="convert" id="imgconv">
+        <h2>Image Converter</h2>
+        <div class="desc">Convert any image to JPG, PNG, WEBP, GIF, BMP, TIFF, ICO or PDF. Reads PNG, JPG/JPEG, WEBP, GIF, BMP, TIFF, ICO and (if pillow-heif is installed) iPhone HEIC. Pick several files to convert them in one go (downloads a .zip).</div>
+        <div class="drop" data-accept="image/*" data-multi="1">
+          <input type="file" accept="image/*,.heic,.heif,.jfif,.tif,.tiff,.ico,.bmp,.webp,.gif" multiple>
+          <div class="label">Drop images here, or click to choose (one or many)</div>
+          <div class="hint">Animated GIF/WEBP: first frame is used</div>
+        </div>
+        <div class="filelist"></div>
+        <div class="row">
+          <div class="field">
+            <label>Convert to</label>
+            <select id="ic-format">
+              <option value="jpg" selected>JPG</option>
+              <option value="png">PNG</option>
+              <option value="webp">WEBP</option>
+              <option value="gif">GIF</option>
+              <option value="bmp">BMP</option>
+              <option value="tiff">TIFF</option>
+              <option value="ico">ICO (icon, max 256px)</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Max size in px (blank = original)</label>
+            <input type="number" id="ic-maxdim" min="16" max="20000" placeholder="e.g. 1920">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field" id="ic-quality-field">
+            <label>Quality (<span id="ic-quality-val">90</span>)</label>
+            <input type="range" id="ic-quality" min="1" max="100" step="1" value="90">
+          </div>
+          <div class="field" id="ic-bg-field">
+            <label>Background for transparent areas</label>
+            <input type="color" id="ic-bg" value="#ffffff">
+          </div>
+        </div>
+        <div class="checks" id="ic-combine-field" style="display:none;">
+          <label><input type="checkbox" id="ic-combine"> Combine all images into one PDF (one page per image)</label>
+        </div>
+        <button class="run" data-endpoint="/api/image-convert" data-filekey="files" data-multi="1" data-min="1">Convert Images</button>
         <div class="status"></div>
       </section>
 
@@ -588,8 +644,9 @@ async function submitJob(btn){
     setStatus(panel, 'err', 'Choose a file first.');
     return;
   }
-  if(isMulti && activeDrop._files.length < 2){
-    setStatus(panel, 'err', 'Choose at least two files.');
+  const minFiles = parseInt(btn.dataset.min || (isMulti ? 2 : 1), 10);
+  if(isMulti && activeDrop._files.length < minFiles){
+    setStatus(panel, 'err', minFiles === 1 ? 'Choose at least one file.' : 'Choose at least two files.');
     return;
   }
 
@@ -631,6 +688,13 @@ async function submitJob(btn){
 }
 
 function collectExtraFields(panelId, fd){
+  if(panelId === 'imgconv'){
+    fd.append('format', document.getElementById('ic-format').value);
+    fd.append('quality', document.getElementById('ic-quality').value);
+    fd.append('max_dim', document.getElementById('ic-maxdim').value);
+    fd.append('bg', document.getElementById('ic-bg').value);
+    fd.append('combine', document.getElementById('ic-combine').checked ? 'true' : 'false');
+  }
   if(panelId === 'pdf2xl'){
     fd.append('combine', document.getElementById('pdf2xl-combine').checked ? 'true' : 'false');
   }
@@ -726,6 +790,20 @@ orgOrganizeDrop.addEventListener('filesready', async ()=>{
 document.getElementById('org-reset-pages').addEventListener('click', ()=>{
   document.querySelectorAll('#org-pagegrid .pagechip').forEach(c=>c.classList.add('sel'));
 });
+
+// image converter: show only the options that matter for the chosen format
+const icFormat = document.getElementById('ic-format');
+function syncImageOptions(){
+  const f = icFormat.value;
+  document.getElementById('ic-quality-field').style.display = (f==='jpg' || f==='webp') ? '' : 'none';
+  document.getElementById('ic-bg-field').style.display = (f==='jpg' || f==='bmp' || f==='pdf') ? '' : 'none';
+  document.getElementById('ic-combine-field').style.display = f==='pdf' ? '' : 'none';
+}
+icFormat.addEventListener('change', syncImageOptions);
+document.getElementById('ic-quality').addEventListener('input', e=>{
+  document.getElementById('ic-quality-val').textContent = e.target.value;
+});
+syncImageOptions();
 
 // watermark opacity live label
 document.getElementById('wm-opacity').addEventListener('input', e=>{
